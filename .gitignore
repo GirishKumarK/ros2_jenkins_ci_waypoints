@@ -1,0 +1,77 @@
+# =====================
+# ROS 2 / colcon workspace outputs
+# =====================
+/build/
+/install/
+/log/
+
+# colcon / ament caches (sometimes appear depending on tooling)
+.colcon/
+/.ament_prefix_path
+/.colcon_install_layout
+
+# ROS runtime stuff
+/.ros/
+**/.ros/
+
+# rosbag2 recordings (often huge)
+**/*.db3
+**/metadata.yaml
+
+# =====================
+# CMake / C++ build leftovers (just in case they leak outside build/)
+# =====================
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+Testing/
+compile_commands.json
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+
+# =====================
+# Python (even if mostly C++; ROS tools sometimes generate)
+# =====================
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# =====================
+# IDE / editor
+# =====================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+.clangd/
+.cache/
+
+# =====================
+# Gazebo / Ignition caches (usually under home, but safe)
+# =====================
+**/.gazebo/
+**/.ignition/
+**/.gz/
+**/*gazebo*/log/
+*.log
+
+# =====================
+# Local env / secrets
+# =====================
+.env
+.env.*
+!.env.example
