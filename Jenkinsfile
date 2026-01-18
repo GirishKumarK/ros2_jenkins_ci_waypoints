@@ -1,10 +1,83 @@
 pipeline {
   agent any
+
+  environment {
+    DOCKER_IMAGE = 'legalaspro/fastbot-humble-waypoints-ci'
+    GAZEBO_STARTUP_TIMEOUT = '60'
+  }
+
   stages {
-    stage('Test') {
+    stage('Compute Tag') {
       steps {
-        sh 'echo running tests'
+        script {
+          env.IMAGE_TAG = (env.GIT_COMMIT ? env.GIT_COMMIT.take(7) : 'local')
+        }
+        echo "Using image tag: ${IMAGE_TAG}"
       }
     }
+
+    stage('Build Docker Image') {
+      steps {
+        echo "Building Docker image: ${DOCKER_IMAGE}:${IMAGE_TAG}"
+        sh "docker build -t ${DOCKER_IMAGE}:${IMAGE_TAG} ."
+      }
+    }
+
+    stage('Run Tests (Headless)') {
+      steps {
+        echo "Running tests in: ${DOCKER_IMAGE}:${IMAGE_TAG}"
+        sh '''
+          docker run --rm \
+            -e GAZEBO_STARTUP_TIMEOUT=${GAZEBO_STARTUP_TIMEOUT} \
+            ${DOCKER_IMAGE}:${IMAGE_TAG} bash -lc '
+              set -e
+              source /opt/ros/humble/setup.bash
+              source /ros2_ws/install/setup.bash
+
+              export ROS_LOG_DIR=/tmp/roslog
+              mkdir -p "$ROS_LOG_DIR"
+
+              echo "Launching Gazebo (headless)..."
+              ros2 launch fastbot_gazebo one_fastbot_room.launch.py headless:=true >/dev/null 2>&1 &
+
+              ODOM_TOPIC="/fastbot/odom"
+
+              echo "Waiting for ${ODOM_TOPIC} to appear (timeout: ${GAZEBO_STARTUP_TIMEOUT}s)..."
+              timeout "${GAZEBO_STARTUP_TIMEOUT}" bash -lc "
+                until ros2 topic list 2>/dev/null | grep -q \"^${ODOM_TOPIC}\$\"; do
+                  sleep 1
+                done
+              " || { echo "ERROR: Timeout waiting for topic to appear: ${ODOM_TOPIC}"; ros2 topic list || true; exit 1; }
+              echo "Simulation ready: topic exists -> ${ODOM_TOPIC}"
+
+
+              echo "Starting Waypoints Action Server..."
+              ros2 run fastbot_waypoints fastbot_action_server >/dev/null 2>&1 &
+
+              ACTION_NAME="/fastbot_as"
+
+              echo "Waiting for action server (${ACTION_NAME})..."
+              timeout 10 bash -lc "
+                until ros2 action list 2>/dev/null | grep -q \"^${ACTION_NAME}\$\"; do
+                  sleep 1
+                done
+              " || { echo "ERROR: Timeout waiting for action server ${ACTION_NAME}"; exit 1; }
+
+              echo "Action server is up. Running waypoints test..."
+              colcon test --packages-select fastbot_waypoints --event-handler=console_direct+
+              colcon test-result --verbose
+            '
+        '''
+        
+      }
+    }
+  }
+
+  post {
+    always {
+      sh 'docker image prune -f >/dev/null 2>&1 || true'
+    }
+    success { echo 'Pipeline completed successfully!' }
+    failure { echo 'Pipeline failed!' }
   }
 }
