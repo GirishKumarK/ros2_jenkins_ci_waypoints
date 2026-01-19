@@ -23,11 +23,13 @@ pipeline {
       }
     }
 
-    stage('Run Tests (Headless)') {
+    stage('Run Tests ') {
       steps {
         echo "Running tests in: ${DOCKER_IMAGE}:${IMAGE_TAG}"
         sh '''
           docker run --rm \
+            -e DISPLAY=${DISPLAY} \
+            -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
             -e GAZEBO_STARTUP_TIMEOUT=${GAZEBO_STARTUP_TIMEOUT} \
             ${DOCKER_IMAGE}:${IMAGE_TAG} bash -lc '
               set -e
@@ -37,8 +39,8 @@ pipeline {
               export ROS_LOG_DIR=/tmp/roslog
               mkdir -p "$ROS_LOG_DIR"
 
-              echo "Launching Gazebo (headless)..."
-              ros2 launch fastbot_gazebo one_fastbot_room.launch.py headless:=true >/dev/null 2>&1 &
+              echo "Launching Gazebo..."
+              ros2 launch fastbot_gazebo one_fastbot_room.launch.py headless:=false >/dev/null 2>&1 &
 
               ODOM_TOPIC="/fastbot/odom"
 
